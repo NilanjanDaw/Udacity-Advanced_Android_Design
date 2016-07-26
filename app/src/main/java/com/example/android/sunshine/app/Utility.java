@@ -16,6 +16,7 @@
 package com.example.android.sunshine.app;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -598,5 +599,11 @@ public class Utility {
         SharedPreferences.Editor spe = sp.edit();
         spe.putInt(c.getString(R.string.pref_location_status_key), SunshineSyncAdapter.LOCATION_STATUS_UNKNOWN);
         spe.apply();
+    }
+
+    public static void startWatchIntent(Context context) {
+        Intent intent = new Intent(context, WatchTemperatureService.class);
+        intent.putExtra("action", "UPDATE_WATCH_FACE");
+        context.startService(intent);
     }
 }

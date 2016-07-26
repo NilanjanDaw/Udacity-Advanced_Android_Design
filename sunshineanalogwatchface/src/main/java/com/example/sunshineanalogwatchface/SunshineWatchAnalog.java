@@ -21,6 +21,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -28,10 +30,23 @@ import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.wearable.watchface.CanvasWatchFaceService;
+import android.support.wearable.watchface.WatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
+import android.util.Log;
 import android.view.SurfaceHolder;
+
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.Wearable;
 
 import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
@@ -59,6 +74,13 @@ public class SunshineWatchAnalog extends CanvasWatchFaceService {
     private Paint paintSmall;
     private Paint paintMedium;
     private Utility utility;
+    private String maxTemp = "00\u00b0";
+    private String minTemp = "00\u00b0";
+    private int weatherID = 0;
+    private static final String PATH  = "/weather";
+    private static final String WEATHER_ID = "WEATHER_ID";
+    private static final String MAX_TEMP = "MAX_TEMP";
+    private static final String MIN_TEMP = "MIN_TEMP";
     public static final String TAG = "SunshineWatchAnalog";
 
     @Override
@@ -86,18 +108,27 @@ public class SunshineWatchAnalog extends CanvasWatchFaceService {
         }
     }
 
-    private class Engine extends CanvasWatchFaceService.Engine {
+    private class Engine extends CanvasWatchFaceService.Engine
+            implements DataApi.DataListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
         final Handler mUpdateTimeHandler = new EngineHandler(this);
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
         Paint mHandPaint;
         boolean mAmbient;
         Time mTime;
+        GoogleApiClient googleApiClient = new GoogleApiClient.Builder(SunshineWatchAnalog.this)
+                .addApi(Wearable.API)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .build();
+
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 mTime.clear(intent.getStringExtra("time-zone"));
                 mTime.setToNow();
+
+
             }
         };
         int mTapCount;
@@ -122,7 +153,7 @@ public class SunshineWatchAnalog extends CanvasWatchFaceService {
             Resources resources = SunshineWatchAnalog.this.getResources();
 
             mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(resources.getColor(R.color.primary_dark));
+            mBackgroundPaint.setColor(resources.getColor(R.color.primary));
 
             mHandPaint = new Paint();
             mHandPaint.setColor(resources.getColor(R.color.analog_hands));
@@ -245,7 +276,7 @@ public class SunshineWatchAnalog extends CanvasWatchFaceService {
                 /**
                  * Draw Date
                  */
-                paintMedium.setColor(getResources().getColor(R.color.grey));
+                paintMedium.setColor(getResources().getColor(R.color.activated));
                 Date date = new Date();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("E, MMM dd yyyy");
                 String dateString = dateFormat.format(date);
@@ -266,31 +297,39 @@ public class SunshineWatchAnalog extends CanvasWatchFaceService {
                         paintMedium
                 );
 
+                /**
+                 * Draw Temperature
+                 */
+                if (getPeekCardPosition().isEmpty()) {
+
+                    paintMedium.setColor(getResources().getColor(R.color.white));
+                    canvas.drawText(
+                            maxTemp,
+                            centerX - paintMedium.measureText(maxTemp + " ") + 15,
+                            centerY - offsetY + lineSizeMedium * 3,
+                            paintMedium
+                    );
+                    paintMedium.setColor(getResources().getColor(R.color.activated));
+                    canvas.drawText(
+                            minTemp,
+                            centerX + paintMedium.measureText(" ") + 15,
+                            centerY - offsetY + lineSizeMedium * 3,
+                            paintMedium
+                    );
+
+                    int drawable = Utility.setUpDrawable(weatherID);
+                    Bitmap bitmap = BitmapFactory.decodeResource(getBaseContext().getResources(),drawable);
+                    bitmap = Bitmap.createScaledBitmap(bitmap, 60, 60, true);
+
+                    canvas.drawBitmap(bitmap,
+                            centerX - paintMedium.measureText(maxTemp + " ") - 45,
+                            centerY - offsetY + lineSizeMedium + 20,
+                            paintMedium
+                    );
+                }
+
             }
 
-
-            /*float secRot = mTime.second / 30f * (float) Math.PI;
-            int minutes = mTime.minute;
-            float minRot = minutes / 30f * (float) Math.PI;
-            float hrRot = ((mTime.hour + (minutes / 60f)) / 6f) * (float) Math.PI;
-
-            float secLength = centerX - 20;
-            float minLength = centerX - 40;
-            float hrLength = centerX - 80;
-
-            if (!mAmbient) {
-                float secX = (float) Math.sin(secRot) * secLength;
-                float secY = (float) -Math.cos(secRot) * secLength;
-                canvas.drawLine(centerX, centerY, centerX + secX, centerY + secY, mHandPaint);
-            }
-
-            float minX = (float) Math.sin(minRot) * minLength;
-            float minY = (float) -Math.cos(minRot) * minLength;
-            canvas.drawLine(centerX, centerY, centerX + minX, centerY + minY, mHandPaint);
-
-            float hrX = (float) Math.sin(hrRot) * hrLength;
-            float hrY = (float) -Math.cos(hrRot) * hrLength;
-            canvas.drawLine(centerX, centerY, centerX + hrX, centerY + hrY, mHandPaint);*/
         }
 
         @Override
@@ -303,8 +342,10 @@ public class SunshineWatchAnalog extends CanvasWatchFaceService {
                 // Update time zone in case it changed while we weren't visible.
                 mTime.clear(TimeZone.getDefault().getID());
                 mTime.setToNow();
+                googleApiClient.connect();
             } else {
                 unregisterReceiver();
+                googleApiClient.disconnect();
             }
 
             // Whether the timer should be running depends on whether we're visible (as well as
@@ -361,6 +402,36 @@ public class SunshineWatchAnalog extends CanvasWatchFaceService {
             }
         }
 
+
+        @Override
+        public void onConnected(@Nullable Bundle bundle) {
+            Wearable.DataApi.addListener(googleApiClient, this);
+        }
+
+        @Override
+        public void onConnectionSuspended(int i) {
+
+        }
+
+        @Override
+        public void onDataChanged(DataEventBuffer dataEventBuffer) {
+            for (DataEvent dataEvent: dataEventBuffer) {
+                DataMap dataMap = DataMapItem.fromDataItem(dataEvent.getDataItem()).getDataMap();
+                String uri = dataEvent.getDataItem(). getUri().toString();
+                if (uri.equalsIgnoreCase(PATH)) {
+                    Log.d(TAG, "onDataChanged: " + dataMap.getString(MAX_TEMP));
+                    maxTemp = dataMap.getString(MAX_TEMP);
+                    minTemp = dataMap.getString(MIN_TEMP);
+                    weatherID = dataMap.getInt(WEATHER_ID);
+                }
+            }
+            invalidate();
+        }
+
+        @Override
+        public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+
+        }
 
     }
 }
