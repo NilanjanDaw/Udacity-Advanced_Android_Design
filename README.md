@@ -1,7 +1,7 @@
 Advanced Android Sample App
 ===================================
 
-Synchronizes weather information from OpenWeatherMap on Android Phones and Tablets. Used in the Udacity Advanced Android course.
+Synchronizes weather information from OpenWeatherMap on Android Phones and Tablets and sends periodic weather updates to Connected Android Wear devices.
 
 Pre-requisites
 --------------
@@ -24,8 +24,7 @@ This sample uses the Gradle build system.  To build this project, use the
 
 UI
 ---
-<img src="/Screenshot_1.png" width="400px" height="400px" hspace="20px" />
-
+<img src="/Screenshot_1.png" width="400px" height="400px" />
 <img src="/Screenshot_2.png" width="400px" height="400px" />
 
 Rubrics
